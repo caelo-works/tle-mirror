@@ -1,0 +1,63 @@
+name: Mirror TLE
+
+# Snapshots CelesTrak GP element sets so networks that cannot reach
+# celestrak.org can still fetch TLEs (served via raw.githubusercontent.com).
+# GitHub's runners reach celestrak.org fine.
+
+on:
+  schedule:
+    - cron: '17 */8 * * *'   # every 8 hours
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch CelesTrak GP groups
+        run: |
+          set -euo pipefail
+          mkdir -p tle
+          groups="active stations starlink oneweb last-30-days visual galileo gps-ops glo-ops science geo iridium-NEXT planet"
+          ok=0
+          for g in $groups; do
+            url="https://celestrak.org/NORAD/elements/gp.php?GROUP=${g}&FORMAT=tle"
+            if curl -fsS --retry 3 --retry-delay 5 --max-time 60 "$url" -o "tle/${g}.tle.new"; then
+              # A valid GP TLE payload has "1 " and "2 " element lines; CelesTrak
+              # sometimes serves an HTML error page with HTTP 200.
+              if grep -qE '^1 ' "tle/${g}.tle.new" && grep -qE '^2 ' "tle/${g}.tle.new"; then
+                mv "tle/${g}.tle.new" "tle/${g}.tle"
+                ok=$((ok+1))
+                echo "ok: ${g} ($(grep -cE '^1 ' "tle/${g}.tle") objects)"
+              else
+                echo "::warning::${g} returned a non-TLE payload"
+                rm -f "tle/${g}.tle.new"
+              fi
+            else
+              echo "::warning::fetch failed for ${g}"
+              rm -f "tle/${g}.tle.new" || true
+            fi
+          done
+          [ "$ok" -gt 0 ] || { echo "::error::no groups fetched"; exit 1; }
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > tle/updated.txt
+          echo "fetched ${ok} group(s)"
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "caelo-works"
+          git config user.email "291852469+caelo-works@users.noreply.github.com"
+          git add tle
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "Update TLE snapshot ($(date -u +%FT%TZ))"
+            git push
+          fi
