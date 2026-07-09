@@ -26,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p tle
-          groups="active stations starlink oneweb last-30-days visual galileo gps-ops glo-ops science geo iridium-NEXT planet"
+          groups="active stations starlink oneweb last-30-days visual galileo gps-ops glo-ops science geo iridium-NEXT planet cosmos-2251-debris iridium-33-debris fengyun-1c-debris cosmos-1408-debris"
           ok=0
           for g in $groups; do
             url="https://celestrak.org/NORAD/elements/gp.php?GROUP=${g}&FORMAT=tle"
@@ -49,6 +49,39 @@ jobs:
           [ "$ok" -gt 0 ] || { echo "::error::no groups fetched"; exit 1; }
           date -u +"%Y-%m-%dT%H:%M:%SZ" > tle/updated.txt
           echo "fetched ${ok} group(s)"
+
+      - name: Fetch McCants classified elements (best effort)
+        run: |
+          set -uo pipefail
+          # NOSS pairs, Lacrosse & friends — objects absent from the public
+          # GP catalog. Third-party source; tolerate outages.
+          if curl -fsS --retry 2 --max-time 60 "https://www.mmccants.org/tles/classfd.zip" -o /tmp/classfd.zip; then
+            if unzip -p /tmp/classfd.zip > tle/classfd.tle.new 2>/dev/null &&
+               grep -qE '^1 ' tle/classfd.tle.new && grep -qE '^2 ' tle/classfd.tle.new; then
+              mv tle/classfd.tle.new tle/classfd.tle
+              echo "ok: classfd ($(grep -cE '^1 ' tle/classfd.tle) objects)"
+            else
+              rm -f tle/classfd.tle.new
+              echo "classfd: payload invalid, kept previous copy if any"
+            fi
+          else
+            echo "classfd: unreachable, kept previous copy if any"
+          fi
+
+      - name: Fetch SATCAT (owner/country per satellite)
+        run: |
+          set -uo pipefail
+          if curl -fsS --retry 3 --retry-delay 5 --max-time 120 "https://celestrak.org/pub/satcat.csv" -o tle/satcat.csv.new; then
+            if head -1 tle/satcat.csv.new | grep -q "NORAD_CAT_ID"; then
+              mv tle/satcat.csv.new tle/satcat.csv
+              echo "ok: satcat ($(wc -l < tle/satcat.csv) rows)"
+            else
+              rm -f tle/satcat.csv.new
+              echo "satcat: payload invalid, kept previous copy if any"
+            fi
+          else
+            echo "satcat: unreachable, kept previous copy if any"
+          fi
 
       - name: Commit if changed
         run: |
