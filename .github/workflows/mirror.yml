@@ -50,21 +50,35 @@ jobs:
           date -u +"%Y-%m-%dT%H:%M:%SZ" > tle/updated.txt
           echo "fetched ${ok} group(s)"
 
-      - name: Fetch full public GP catalog
+      - name: Fetch full public GP catalog (per launch year)
         run: |
           set -uo pipefail
-          # Everything in the public GP catalog in one file — includes rocket
-          # bodies and defunct payloads the curated groups above do not cover.
-          if curl -fsS --retry 3 --retry-delay 5 --max-time 180 "https://celestrak.org/pub/TLE/catalog.txt" -o tle/catalog.tle.new; then
-            if grep -qE '^1 ' tle/catalog.tle.new && grep -qE '^2 ' tle/catalog.tle.new; then
-              mv tle/catalog.tle.new tle/catalog.tle
-              echo "ok: catalog ($(grep -cE '^1 ' tle/catalog.tle) objects)"
+          # CelesTrak retired the single-file catalog dump (the old
+          # pub/TLE/catalog.txt now returns 403), so rebuild it from one GP
+          # query per launch year. This covers rocket bodies and defunct
+          # payloads that the curated groups above do not.
+          : > tle/catalog.tle.new
+          fails=0
+          for y in $(seq 1957 "$(date -u +%Y)"); do
+            if curl -fsS --retry 2 --retry-delay 5 --max-time 60 "https://celestrak.org/NORAD/elements/gp.php?INTDES=${y}&FORMAT=tle" -o /tmp/year.tle; then
+              # Years whose objects have all decayed return a plain-text
+              # "No GP data found" message; skip anything without element lines.
+              if grep -qE '^1 ' /tmp/year.tle && grep -qE '^2 ' /tmp/year.tle; then
+                cat /tmp/year.tle >> tle/catalog.tle.new
+              fi
             else
-              rm -f tle/catalog.tle.new
-              echo "catalog: payload invalid, kept previous copy if any"
+              echo "::warning::catalog: fetch failed for launch year ${y}"
+              fails=$((fails+1))
             fi
+            sleep 0.3
+          done
+          n=$(grep -cE '^1 ' tle/catalog.tle.new || true)
+          if [ "$fails" -eq 0 ] && [ "$n" -ge 20000 ]; then
+            mv tle/catalog.tle.new tle/catalog.tle
+            echo "ok: catalog (${n} objects)"
           else
-            echo "catalog: unreachable, kept previous copy if any"
+            rm -f tle/catalog.tle.new
+            echo "catalog: incomplete (${fails} year(s) failed, ${n} objects), kept previous copy if any"
           fi
 
       - name: Fetch McCants classified elements (best effort)

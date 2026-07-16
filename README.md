@@ -20,6 +20,6 @@ e.g. [`tle/active.tle`](tle/active.tle), `tle/starlink.tle`, `tle/stations.tle`.
 Mirrored groups: `active`, `stations`, `starlink`, `oneweb`, `last-30-days`,
 `visual`, `galileo`, `gps-ops`, `glo-ops`, `science`, `geo`, `iridium-NEXT`,
 `planet`.
-`tle/catalog.tle` is the full public GP catalog (all ~34k tracked objects, rocket bodies and defunct payloads included).
+`tle/catalog.tle` is the full public GP catalog (rocket bodies and defunct payloads included), rebuilt from one query per launch year.
 
 Data is © CelesTrak / Dr. T.S. Kelso; this repository only re-serves it.
