@@ -10,20 +10,30 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Master GP index, catalog mentions
+      - name: List /pub directory
         run: |
           set -uo pipefail
-          curl -fsS --max-time 60 "https://celestrak.org/NORAD/elements/master-gp-index.php" -o master.html || echo "master fetch failed: $?"
-          grep -io '[^"<>]*catalog[^"<>]*' master.html | sort -u | head -30 || true
-          echo "---- hrefs with catalog ----"
-          grep -o 'href="[^"]*"' master.html | grep -i catalog | sort -u | head -30 || true
+          code=$(curl -sS -o pub.html -w "%{http_code}" --max-time 60 "https://celestrak.org/pub/") || true
+          echo "/pub/ -> HTTP $code, $(wc -c < pub.html) bytes"
+          grep -o 'href="[^"]*"' pub.html | sort -u | head -40 || true
 
-      - name: GP data formats doc, full catalog guidance
+      - name: NAME=DEB query
         run: |
           set -uo pipefail
-          curl -fsS --max-time 60 "https://celestrak.org/NORAD/documentation/gp-data-formats.php" -o doc.html || echo "doc fetch failed: $?"
-          grep -io '.\{0,120\}full catalog.\{0,200\}' doc.html | head -20 || true
-          echo "---- pub/ links ----"
-          grep -o 'href="[^"]*pub[^"]*"' doc.html | sort -u | head -20 || true
-          echo "---- catalog.txt mentions ----"
-          grep -io '.\{0,100\}catalog\.txt.\{0,150\}' doc.html | head -10 || true
+          code=$(curl -sS -o deb.txt -w "%{http_code}" --max-time 120 "https://celestrak.org/NORAD/elements/gp.php?NAME=DEB&FORMAT=tle") || true
+          echo "NAME=DEB -> HTTP $code, $(wc -c < deb.txt) bytes, $(grep -cE '^1 ' deb.txt || true) objects"
+          head -3 deb.txt
+
+      - name: NAME=R/B query
+        run: |
+          set -uo pipefail
+          code=$(curl -sS -o rb.txt -w "%{http_code}" --max-time 120 "https://celestrak.org/NORAD/elements/gp.php?NAME=R/B&FORMAT=tle") || true
+          echo "NAME=R/B -> HTTP $code, $(wc -c < rb.txt) bytes, $(grep -cE '^1 ' rb.txt || true) objects"
+          head -3 rb.txt
+
+      - name: NAME=ENVISAT query
+        run: |
+          set -uo pipefail
+          code=$(curl -sS -o env.txt -w "%{http_code}" --max-time 60 "https://celestrak.org/NORAD/elements/gp.php?NAME=ENVISAT&FORMAT=tle") || true
+          echo "NAME=ENVISAT -> HTTP $code, $(wc -c < env.txt) bytes, $(grep -cE '^1 ' env.txt || true) objects"
+          head -3 env.txt
