@@ -1,0 +1,28 @@
+name: Probe catalog source
+
+# Temporary: locate the current CelesTrak URL for the full GP catalog.
+
+on:
+  push:
+    branches: [probe]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect CelesTrak index for full-catalog links
+        run: |
+          set -uo pipefail
+          curl -fsS --max-time 60 "https://celestrak.org/NORAD/elements/index.php?FORMAT=tle" -o index.html || echo "index fetch failed: $?"
+          echo "---- lines mentioning catalog ----"
+          grep -io '[^"]*catalog[^"]*' index.html | sort -u | head -40 || true
+          echo "---- gp.php hrefs ----"
+          grep -o 'gp.php?[^"]*' index.html | sort -u | head -60 || true
+
+      - name: Try GROUP=catalog
+        run: |
+          set -uo pipefail
+          code=$(curl -sS -o cat.txt -w "%{http_code}" --max-time 120 "https://celestrak.org/NORAD/elements/gp.php?GROUP=catalog&FORMAT=tle") || true
+          echo "GROUP=catalog -> HTTP $code, $(wc -c < cat.txt) bytes"
+          head -6 cat.txt
+          echo "tle line-1 count: $(grep -cE '^1 ' cat.txt || true)"
