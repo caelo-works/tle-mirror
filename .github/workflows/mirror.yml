@@ -60,14 +60,18 @@ jobs:
           : > tle/catalog.tle.new
           fails=0
           for y in $(seq 1957 "$(date -u +%Y)"); do
-            if curl -fsS --retry 2 --retry-delay 5 --max-time 60 "https://celestrak.org/NORAD/elements/gp.php?INTDES=${y}&FORMAT=tle" -o /tmp/year.tle; then
-              # Years whose objects have all decayed return a plain-text
+            code=$(curl -sS --retry 2 --retry-delay 5 --max-time 60 -w "%{http_code}" "https://celestrak.org/NORAD/elements/gp.php?INTDES=${y}&FORMAT=tle" -o /tmp/year.tle) || code=000
+            if [ "$code" = "200" ]; then
+              # Years whose objects have all decayed can also return a plain-text
               # "No GP data found" message; skip anything without element lines.
               if grep -qE '^1 ' /tmp/year.tle && grep -qE '^2 ' /tmp/year.tle; then
                 cat /tmp/year.tle >> tle/catalog.tle.new
               fi
+            elif [ "$code" = "404" ]; then
+              # No objects from that launch year still have GP data (e.g. 1957).
+              echo "catalog: no data for launch year ${y}"
             else
-              echo "::warning::catalog: fetch failed for launch year ${y}"
+              echo "::warning::catalog: fetch failed for launch year ${y} (HTTP ${code})"
               fails=$((fails+1))
             fi
             sleep 0.3
