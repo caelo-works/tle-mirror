@@ -10,30 +10,22 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: List /pub directory
+      - name: INTDES year query
         run: |
           set -uo pipefail
-          code=$(curl -sS -o pub.html -w "%{http_code}" --max-time 60 "https://celestrak.org/pub/") || true
-          echo "/pub/ -> HTTP $code, $(wc -c < pub.html) bytes"
-          grep -o 'href="[^"]*"' pub.html | sort -u | head -40 || true
+          code=$(curl -sS -o y.txt -w "%{http_code}" --max-time 120 "https://celestrak.org/NORAD/elements/gp.php?INTDES=2002&FORMAT=tle") || true
+          echo "INTDES=2002 -> HTTP $code, $(wc -c < y.txt) bytes, $(grep -cE '^1 ' y.txt || true) objects"
+          head -3 y.txt
+          grep -c ENVISAT y.txt || echo "no ENVISAT"
 
-      - name: NAME=DEB query
+      - name: SPECIAL=decaying query
         run: |
           set -uo pipefail
-          code=$(curl -sS -o deb.txt -w "%{http_code}" --max-time 120 "https://celestrak.org/NORAD/elements/gp.php?NAME=DEB&FORMAT=tle") || true
-          echo "NAME=DEB -> HTTP $code, $(wc -c < deb.txt) bytes, $(grep -cE '^1 ' deb.txt || true) objects"
-          head -3 deb.txt
+          code=$(curl -sS -o d.txt -w "%{http_code}" --max-time 60 "https://celestrak.org/NORAD/elements/gp.php?SPECIAL=decaying&FORMAT=tle") || true
+          echo "SPECIAL=decaying -> HTTP $code, $(wc -c < d.txt) bytes, $(grep -cE '^1 ' d.txt || true) objects"
 
-      - name: NAME=R/B query
+      - name: GROUP=analyst query
         run: |
           set -uo pipefail
-          code=$(curl -sS -o rb.txt -w "%{http_code}" --max-time 120 "https://celestrak.org/NORAD/elements/gp.php?NAME=R/B&FORMAT=tle") || true
-          echo "NAME=R/B -> HTTP $code, $(wc -c < rb.txt) bytes, $(grep -cE '^1 ' rb.txt || true) objects"
-          head -3 rb.txt
-
-      - name: NAME=ENVISAT query
-        run: |
-          set -uo pipefail
-          code=$(curl -sS -o env.txt -w "%{http_code}" --max-time 60 "https://celestrak.org/NORAD/elements/gp.php?NAME=ENVISAT&FORMAT=tle") || true
-          echo "NAME=ENVISAT -> HTTP $code, $(wc -c < env.txt) bytes, $(grep -cE '^1 ' env.txt || true) objects"
-          head -3 env.txt
+          code=$(curl -sS -o a.txt -w "%{http_code}" --max-time 60 "https://celestrak.org/NORAD/elements/gp.php?GROUP=analyst&FORMAT=tle") || true
+          echo "GROUP=analyst -> HTTP $code, $(wc -c < a.txt) bytes, $(grep -cE '^1 ' a.txt || true) objects"
