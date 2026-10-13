@@ -48,7 +48,9 @@ checks; otherwise the previous copy is kept as is.
 At every snapshot the workflow regenerates `tle/SHA256SUMS` over every file in
 `tle/` (except the manifest itself and `.gitkeep`), checks it against the files
 with `sha256sum -c`, and commits it in the same commit as the files it
-describes. The format is the standard `sha256sum` output, one line per file,
+describes. Files are stored and served with LF line endings (the sources'
+CRLF is normalised before hashing), so the hashes describe exactly the bytes
+served. The format is the standard `sha256sum` output, one line per file,
 sorted by name, filenames relative to `tle/`:
 
 ```
